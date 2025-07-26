@@ -3,55 +3,50 @@ package dev.flwn.commands
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.context.CommandContext
-import dev.flwn.AtmospireAliasing.kottage
+import dev.flwn.AtmospireAliasing.db
 import dev.flwn.AtmospireAliasing.logger
-import io.github.irgaly.kottage.KottageList
-import io.github.irgaly.kottage.KottageStorage
-import io.github.irgaly.kottage.add
 import kotlinx.coroutines.runBlocking
 import net.minecraft.server.command.CommandManager
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.Text
+import org.mapdb.Serializer
+import java.util.concurrent.ConcurrentMap
 
 
 object AliasCommand {
-    val STORAGE_NAME = "stored_aliases"
-    val LIST_NAME = "alias_list"
+    const val MAP_NAME = "aliases"
 
     fun executeAdd(context: CommandContext<ServerCommandSource?>?): Int {
         val source = context?.source
 
         // get arguments from the command context
-        val alias = StringArgumentType.getString(context, "alias").replace("\\s".toRegex(), "_") // Replace spaces with underscores
+        val alias = StringArgumentType.getString(context, "alias")
+            .replace("\\s".toRegex(), "_") // Replace spaces with underscores
         val command = StringArgumentType.getString(context, "command")
 
-        // Open Kottage database as storage mode
-        val storage: KottageStorage = kottage.storage(STORAGE_NAME)
-        val list: KottageList = storage.list(LIST_NAME)
+        val map: ConcurrentMap<String?, String?>? =
+            db?.hashMap(MAP_NAME, Serializer.STRING, Serializer.STRING)?.createOrOpen()
 
-        runBlocking {
-            if (storage.exists(alias)) {
-                source?.sendError(Text.literal("Alias '$alias' already exists.").withColor(0xFF0000))
-                return@runBlocking -1
-            }
-            list.add(alias, command)
+        if (map?.containsKey(alias) == true) {
+            source?.sendError(Text.literal("Alias '$alias' already exists.").withColor(0xFF0000))
+            return -1
         }
+        map?.put(alias, command)
 
         val commandManager = source?.server?.commandManager
 
         commandManager?.dispatcher?.register(
-            CommandManager.literal(alias)
-                .executes { context: CommandContext<ServerCommandSource?>? ->
-                    commandManager.executeWithPrefix(context?.source, command ?: "")
-                    1
-                }
-        )
+            CommandManager.literal(alias).executes { context: CommandContext<ServerCommandSource?>? ->
+                commandManager.executeWithPrefix(context?.source, command ?: "")
+                1
+            })
 
         // Send the updated command tree to all players
         for (player in source?.server?.playerManager?.playerList ?: emptyList()) {
             commandManager?.sendCommandTree(player)
         }
 
+        db?.commit()
         source?.sendFeedback({ Text.literal("Alias '$alias' added for command '$command'").withColor(0x00FF00) }, false)
         return 1
     }
@@ -60,87 +55,82 @@ object AliasCommand {
         val source = context?.source
         val alias = StringArgumentType.getString(context, "alias")
 
-        // Open Kottage database as storage mode
-        val storage: KottageStorage = kottage.storage(STORAGE_NAME)
+        val map: ConcurrentMap<String?, String?>? =
+            db?.hashMap(MAP_NAME, Serializer.STRING, Serializer.STRING)?.createOrOpen()
 
-        runBlocking {
-            if (!storage.exists(alias)) {
-                source?.sendError(Text.literal("Alias '$alias' does not exist.").withColor(0xFF0000))
-                return@runBlocking -1
-            } else {
-                storage.remove(alias)
+        if (map?.containsKey(alias) != true) {
+            source?.sendError(Text.literal("Alias '$alias' does not exist.").withColor(0xFF0000))
+            return -1
+        } else {
+            map.remove(alias)
 
-                // Remove the command from the command manager
-                val commandManager = source?.server?.commandManager
-                commandManager?.dispatcher?.getRoot()?.children?.remove(
-                    commandManager.dispatcher?.getRoot()?.getChild(alias)
-                )
+            // Remove the command from the command manager
+            val commandManager = source?.server?.commandManager
+            commandManager?.dispatcher?.getRoot()?.children?.remove(
+                commandManager.dispatcher?.getRoot()?.getChild(alias)
+            )
 
-                // Send the updated command tree to all players
-                for (player in source?.server?.playerManager?.playerList ?: emptyList()) {
-                    commandManager?.sendCommandTree(player)
-                }
-
-                source?.sendFeedback({ Text.literal("Alias '$alias' removed.").withColor(0x00FF00) }, false)
-                logger.info("Alias '$alias' removed from Kottage database and command manager.")
+            // Send the updated command tree to all players
+            for (player in source?.server?.playerManager?.playerList ?: emptyList()) {
+                commandManager?.sendCommandTree(player)
             }
+
+            source?.sendFeedback({ Text.literal("Alias '$alias' removed.").withColor(0x00FF00) }, false)
+            logger.info("Alias '$alias' removed from MapDB database and command manager.")
         }
 
+        db?.commit()
         return 1
     }
 
     fun executeList(context: CommandContext<ServerCommandSource?>?): Int {
         val source = context?.source
 
-        val storage: KottageStorage = kottage.storage(STORAGE_NAME)
-        val list: KottageList = storage.list(LIST_NAME)
+        val map: ConcurrentMap<String?, String?>? =
+            db?.hashMap(MAP_NAME, Serializer.STRING, Serializer.STRING)?.createOrOpen()
 
         val output = Text.literal("Stored command aliases:\n").withColor(0x00FF00)
-        runBlocking {
-            for (i in 0 until list.getSize()) {
-                val listEntry = list.getByIndex(i)
-                val alias = listEntry?.entry<String>()?.key
-                val command = listEntry?.entry<String>()?.get()
-                if (alias != null && command != null) {
-                    output.append(Text.literal("- /$alias : \"/$command\"").withColor(0xFFA500))
-                    if (i < list.getSize() - 1) {
+
+        for ((index, entry) in (map?.entries ?: emptySet()).withIndex()) {
+            val alias = entry.key
+            val command = entry.value
+            if (alias != null && command != null) {
+                output.append(Text.literal("- /$alias : \"/$command\"").withColor(0xFFA500))
+                map?.entries?.count()?.minus(1)?.let {
+                    if (index < it) {
                         output.append(Text.literal("\n"))
                     }
                 }
             }
-            if (list.getSize() == 0L) {
-                output.append(Text.literal("No stored aliases found.").withColor(0xFF0000))
-            }
-
-            source?.sendFeedback({ output }, false)
-            logger.info("Listed ${list.getSize()} stored aliases from Kottage database for ${source?.name}.")
         }
+        if (map.isNullOrEmpty()) {
+            output.append(Text.literal("No stored aliases found.").withColor(0xFF0000))
+        }
+
+        source?.sendFeedback({ output }, false)
+        logger.info("Listed ${map?.entries?.count() ?: 0} stored aliases from MapDB database for ${source?.name}.")
 
         return 1
     }
 
-    suspend fun registerStoredCommands(dispatcher: CommandDispatcher<ServerCommandSource?>) {
+    fun registerStoredCommands(dispatcher: CommandDispatcher<ServerCommandSource?>) {
         logger.info("Registering stored command aliases...")
 
-        // Open Kottage database as storage mode
-        val storage: KottageStorage = kottage.storage(STORAGE_NAME)
-        val list: KottageList = storage.list(LIST_NAME)
+        val map: ConcurrentMap<String?, String?>? =
+            db?.hashMap(MAP_NAME, Serializer.STRING, Serializer.STRING)?.createOrOpen()
 
-        for (i in 0 until list.getSize()) {
-            val listEntry = list.getByIndex(i)
-            val alias = listEntry?.entry<String>()?.key
-            val command = listEntry?.entry<String>()?.get()
+        for (entry in map?.entries ?: emptySet()) {
+            val alias = entry.key
+            val command = entry.value
             if (alias != null && command != null) {
                 dispatcher.register(
-                    CommandManager.literal(alias)
-                        .executes { ctx: CommandContext<ServerCommandSource?>? ->
-                            ctx?.source?.server?.commandManager?.executeWithPrefix(ctx.source, command)
-                            1
-                        }
-                )
+                    CommandManager.literal(alias).executes { ctx: CommandContext<ServerCommandSource?>? ->
+                        ctx?.source?.server?.commandManager?.executeWithPrefix(ctx.source, command)
+                        1
+                    })
             }
         }
 
-        logger.info("Registered ${list.getSize()} stored aliases from Kottage database.")
+        logger.info("Registered ${map?.entries?.count() ?: 0} stored aliases from MapDB database.")
     }
 }
