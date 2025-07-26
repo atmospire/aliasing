@@ -15,7 +15,6 @@ import kotlinx.serialization.json.Json
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
 import net.fabricmc.loader.api.FabricLoader
-import net.fabricmc.loader.api.metadata.ModMetadata
 import net.minecraft.command.CommandRegistryAccess
 import net.minecraft.server.command.CommandManager
 import net.minecraft.server.command.ServerCommandSource
@@ -36,6 +35,7 @@ object AtmospireAliasing : ModInitializer {
 
     override fun onInitialize() {
         logger.info("Initializing ${MOD_ID}...")
+        val metadata = FabricLoader.getInstance().getModContainer(MOD_ID).get().metadata
 
         // Register commands
         CommandRegistrationCallback.EVENT.register(CommandRegistrationCallback { dispatcher: CommandDispatcher<ServerCommandSource?>, dedicated: CommandRegistryAccess?, environment: CommandManager.RegistrationEnvironment? ->
@@ -56,9 +56,8 @@ object AtmospireAliasing : ModInitializer {
                     .executes(AliasCommand::executeList))
 
             val version = { ctx: CommandContext<ServerCommandSource?>? ->
-                val mod = FabricLoader.getInstance().getModContainer(MOD_ID).get()
                 ctx?.source?.sendFeedback({
-                    Text.literal("${mod.metadata.name} - Version ${mod.metadata.version}").withColor(0xB39EB5)
+                    Text.literal("${metadata.name} - Version ${metadata.version}").withColor(0xB39EB5)
                 }, false)
                 1
             }
@@ -70,7 +69,7 @@ object AtmospireAliasing : ModInitializer {
             dispatcher.getRoot().addChild(alias.build())
             dispatcher.getRoot().addChild(mod.build())
 
-            logger.info("${MOD_ID} initialized successfully!")
+            logger.info("${metadata.name} initialized successfully!")
         })
     }
 }
