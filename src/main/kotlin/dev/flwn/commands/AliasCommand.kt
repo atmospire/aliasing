@@ -5,7 +5,6 @@ import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.context.CommandContext
 import dev.flwn.AtmospireAliasing.db
 import dev.flwn.AtmospireAliasing.logger
-import kotlinx.coroutines.runBlocking
 import net.minecraft.server.command.CommandManager
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.Text
