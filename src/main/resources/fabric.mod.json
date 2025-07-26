@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "atmospirealiasing",
+  "version": "${version}",
+  "name": "Atmospire Aliasing",
+  "description": "Adds aliases for commands in Minecraft.",
+  "authors": [
+    "Flowyan"
+  ],
+  "contact": {
+    "homepage": "https://fabricmc.net/",
+    "sources": "https://github.com/FabricMC/fabric-example-mod"
+  },
+  "license": "CC0-1.0",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      {
+        "value": "dev.flwn.AtmospireAliasing",
+        "adapter": "kotlin"
+      }
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.14",
+    "minecraft": "~1.21.7",
+    "java": ">=21",
+    "fabric-api": "*",
+    "fabric-language-kotlin": "*"
+  }
+}
