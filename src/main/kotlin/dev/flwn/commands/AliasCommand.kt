@@ -134,7 +134,7 @@ object AliasCommand {
                 dispatcher.register(
                     CommandManager.literal(alias)
                         .executes { ctx: CommandContext<ServerCommandSource?>? ->
-                            ctx?.source?.server?.commandManager?.executeWithPrefix(ctx?.source, command)
+                            ctx?.source?.server?.commandManager?.executeWithPrefix(ctx.source, command)
                             1
                         }
                 )
