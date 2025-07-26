@@ -12,6 +12,7 @@ base {
 }
 
 repositories {
+    mavenCentral()
     maven {
         url = uri("https://repo.opencollab.dev/main/")
     }
@@ -27,16 +28,16 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     modImplementation "net.fabricmc:fabric-language-kotlin:${project.fabric_kotlin_version}"
 
-    implementation "io.github.irgaly.kottage:kottage:1.8.0"
-    include "io.github.irgaly.kottage:kottage:1.8.0"
+    implementation "org.mapdb:mapdb:3.1.0"
+    include "org.mapdb:mapdb:3.1.0"
 
     // TOML parsing library
-    implementation "org.tomlj:tomlj:1.1.1"
-    include "org.tomlj:tomlj:1.1.1"
+//    implementation "org.tomlj:tomlj:1.1.1"
+//    include "org.tomlj:tomlj:1.1.1"
 
     // ANTLR runtime (required by tomlj)
-    implementation "org.antlr:antlr4-runtime:4.11.1"
-    include "org.antlr:antlr4-runtime:4.11.1"
+//    implementation "org.antlr:antlr4-runtime:4.11.1"
+//    include "org.antlr:antlr4-runtime:4.11.1"
 }
 
 processResources {
